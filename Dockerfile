@@ -13,5 +13,5 @@ COPY app /wecan/app/
 
 WORKDIR /wecan/app/
 
-RUN python3 wait_for_mysql.py
+#RUN python3 wait_for_mysql.py
 CMD gunicorn --bind 0.0.0.0:8000 flask_app:app
