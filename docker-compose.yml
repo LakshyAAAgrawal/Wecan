@@ -7,6 +7,11 @@ services:
       - "4300:8000"
     depends_on:
       - db
+  bot:
+    build:
+      context: tg_bot
+    depends_on:
+      - db
   db:
     image: mysql:5.7
     ports:
