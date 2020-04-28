@@ -26,7 +26,8 @@ queries = {
     "check_username": "SELECT 1 FROM USERS WHERE id=\"%s\"",
     "check_login": "SELECT 1 FROM USERS WHERE id=\"%s\" AND password=\"%s\"",
     "list_boards_of_user_where": 'SELECT id, name FROM BOARDS WHERE id IN (SELECT board_id FROM BOARD_USERS WHERE user_id="%s" AND board_id="%s")', # 1.935 sec
-    "list_boards_of_user_join": 'SELECT A.id, A.name FROM BOARDS AS A INNER JOIN BOARD_USERS AS B ON A.id=B.board_id WHERE B.user_id="%s"' # 0.072 sec
+    "list_boards_of_user_join": 'SELECT A.id, A.name FROM BOARDS AS A INNER JOIN BOARD_USERS AS B ON A.id=B.board_id WHERE B.user_id="%s"' # 0.072 sec,
+    "create_board": "INSERT INTO BOARDS(name, admin_id)"
 }
 
 def check_username_exists(username):
@@ -34,6 +35,9 @@ def check_username_exists(username):
     z = cursor.fetchone()
     print(z)
     return True if z != None else False
+
+def create_board_in_db(username, board_name):
+    
 
 def fetch_boards_of(username):
     cursor.execute(queries['list_boards_of_user_join'] % (username))
