@@ -4,10 +4,10 @@ import logging
 from telegram.ext import Updater, CommandHandler, MessageHandler, Filters
 from telegram.ext import ConversationHandler
 
-from telegram import ReplyKeyboardMarkup
+from telegram import ReplyKeyboardMarkup, ReplyKeyboardRemove, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram import ParseMode
 
-from db_manage import check_username_exists, check_login
+from db_manage import check_username_exists, check_login, fetch_boards_of
 
 dbConfig = {
     'user': 'root',
@@ -25,13 +25,21 @@ cursor = None
 BEGINMSG = "Hi. Welcome to Wecan. Send \
 /login to begin login process."
 
-USERNAME, PASSWORD, LOGGED_IN = range(3)
+USERNAME, PASSWORD, LOGGED_IN, CHOOSING_BOARDS = range(4)
 
 logging.basicConfig(format = '%(asctime)s - %(name)s - %(levelname)s - %(message)s',
                     level = logging.INFO)
 logger = logging.getLogger(__name__)
 
-
+def logged_in_state(update, context):
+    update.message.reply_text(
+        "Choose action",
+        reply_markup = ReplyKeyboardMarkup(
+            [['Show boards'], ['logout']],
+            one_time_keyboard=True
+        )
+    )
+    
 def start(update, context):
     update.message.reply_text(
         BEGINMSG,
@@ -42,10 +50,31 @@ def start(update, context):
     )
 
 def show_boards(update, context):
-    pass
+    if ('state' in context.user_data and
+        context.user_data['state'] == 'logged_in' and
+        'username' in context.user_data):
+        boards = fetch_boards_of(context.user_data['username'])
+        if len(boards) > 0:
+            board_keys = map(lambda x: [InlineKeyboardButton(x[0], callback_data=("BOARD_ID:" + x[1]))], boards)
+            reply_markup = InlineKeyboardMarkup(board_keys)
+            update.message.reply_text(
+                "Your Boards:",
+                reply_markup=reply_markup
+            )
+            return CHOOSING_BOARDS
+        else:
+            update.message.reply_text("No Boards available!")
+            logged_in_state(update, context)
+            return LOGGED_IN
+    else:
+        logout(update, context)
+        return ConversationHandler.END
     
 def login(update, context):
-    update.message.reply_text("Type username")
+    update.message.reply_text(
+        "Type username",
+        reply_markup=ReplyKeyboardRemove()
+    )
     return USERNAME
 
 def cancel(update, context):
@@ -60,22 +89,35 @@ def username(update, context):
         update.message.reply_text("Enter password")
         return PASSWORD
     update.message.reply_text("Bad username. Aborting")
+    start(update, context)
     return ConversationHandler.END
-    
+
 def password(update, context):
     if ('state' in context.user_data and
         context.user_data['state'] == "username_verified"):
         password = update.message.text
         if check_login(context.user_data['username'], password):
             update.message.reply_text("Succefully logged in. Hurray")
+            context.user_data['state'] = "logged_in"
+            logged_in_state(update, context)
             return LOGGED_IN
         else:
             update.message.reply_text("Wrong password")
+            del context.user_data['state']
+            del context.user_data['username']
+            start(update, context)
             return ConversationHandler.END
     else:
         update.message.reply_text("Use /login, to login")
+        start(update, context)
         return ConversationHandler.END
 
+def logout(update, context):
+    del context.user_data['state']
+    del context.user_data['username']
+    start(update, context)
+    return ConversationHandler.END
+    
 def error(update, context):
     """Log Errors caused by Updates."""
     logger.warning('Update "%s" caused error "%s"', update, context.error)
@@ -94,10 +136,11 @@ def main():
             USERNAME: [MessageHandler(Filters.text, username)],
             PASSWORD: [MessageHandler(Filters.text, password)],
             LOGGED_IN: [
-                CommandHandler('show_boards', show_boards)
+                MessageHandler(Filters.regex('^(Show boards)$'), show_boards),
+                MessageHandler(Filters.regex('^(logout)$'), logout)
             ]
         },
-        fallbacks=[CommandHandler('cancel', cancel)]
+        fallbacks=[CommandHandler('cancel', logout)]
     )
 
     dp.add_handler(login_handler)
