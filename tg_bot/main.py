@@ -36,8 +36,7 @@ def logged_in_state(update, context):
     update.message.reply_text(
         "Choose action",
         reply_markup = ReplyKeyboardMarkup(
-            [['Show boards'], ['logout']],
-            one_time_keyboard=True
+            [['Show boards'], ['logout'], ['Create Board']],
         )
     )
     
@@ -47,15 +46,25 @@ def start(update, context):
         reply_markup = ReplyKeyboardMarkup(
             [['/login']],
             one_time_keyboard=True
-        )
+        ),
+        resize_keyboard = True
     )
 
+def callback_queries(update, context):
+    pattern = re.compile("BOARD_ID\:([0-9]*)")
+    query = update.callback_query
+    if match:=pattern.search(query.data):
+        board_id = match.group(1)
+        print(board_id)
+        query.answer()
+        context.bot.send_message(update.callback_query.id, "Selected option: {}".format(query.data))
+    
 def create_board(update, context):
     if ('state' in context.user_data and
         context.user_data['state'] == 'logged_in' and
         'username' in context.user_data):
         update.message.reply_text(
-            "Type board_name",
+            "Type board name",
             reply_markup=ReplyKeyboardRemove()
         )
         return CREATE_BOARD_ID
@@ -67,9 +76,20 @@ def create_board_id(update, context):
     if ('state' in context.user_data and
         context.user_data['state'] == 'logged_in' and
         'username' in context.user_data):
-        pattern = re.compile("[0-9A-Za-z]")
+        pattern = re.compile("[0-9A-Za-z]*")
         if match := pattern.fullmatch(update.message.text):
-            create_board_in_db(context.user_data['username'], match.group(0))
+            try:
+                if create_board_in_db(context.user_data['username'], match.group(0)):
+                    update.message.reply_text("Board created succefully")
+                else:
+                    update.message.reply_text("The board could not be created")
+            except:
+                update.message.reply_text("There was an error in creating the board")
+            logged_in_state(update, context)
+            return LOGGED_IN
+        else:
+            update.message.reply_text("Please enter appropriate name")
+            return CREATE_BOARD_ID
     else:
         logout(update, context)
         return ConversationHandler.END
@@ -151,15 +171,6 @@ def error(update, context):
     """Log Errors caused by Updates."""
     logger.warning('Update "%s" caused error "%s"', update, context.error)
 
-def callback_queries(update, context):
-    pattern = re.compile("BOARD_ID\:([0-9]*)")
-    query = update.callback_query
-    if match:=pattern.search(query.data):
-        board_id = match.group(1)
-        print(board_id)
-        query.answer()
-        context.bot.send_message(, "Selected option: {}".format(query.data))
-    
 def main():
     global cursor, connection
     updater = Updater("1275114481:AAEcU0WoAkjzN-1Pv-UPp9qnpOPdrNwOQrE", use_context=True)

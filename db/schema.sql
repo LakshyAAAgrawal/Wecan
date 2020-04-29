@@ -80,8 +80,7 @@ CREATE TABLE `BOARDS` (
   `admin_id` int(11) NOT NULL,
   `organisation_id` int(11) NOT NULL,
   PRIMARY KEY (`id`),
-  KEY `admin_id` (`admin_id`),
-  CONSTRAINT `boards_ibfk_1` FOREIGN KEY (`admin_id`) REFERENCES `users` (`id`)
+  CONSTRAINT `boards_ibfk_1` FOREIGN KEY (`admin_id`) REFERENCES `USERS` (`id`)
 ) ENGINE=InnoDB AUTO_INCREMENT=401 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
 /*!40101 SET character_set_client = @saved_cs_client */;
 

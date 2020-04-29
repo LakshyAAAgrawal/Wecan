@@ -17,6 +17,8 @@ services:
     ports:
       - "32000:3306"
     restart: always
+    cap_add:
+      - SYS_NICE
     environment:
       MYSQL_ROOT_PASSWORD: root
       MYSQL_DATABASE: wecan
