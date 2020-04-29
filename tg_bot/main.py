@@ -246,7 +246,29 @@ def show_boards(update, context):
         return ConversationHandler.END
 
 def select_list(update, context):
-    pass
+    if ('state' in context.user_data and
+        context.user_data['state'] == 'logged_in' and
+        'username' in context.user_data and
+        'board_id' in context.user_data):
+        pattern = re.compile('^([0-9A-Za-z]*)\:([0-9]*)$')
+        if match := pattern.fullmatch(update.message.text):
+            list_name = match.group(1)
+            list_id = match.group(2)
+            if check_list_exists(board_name, board_id, context.user_data['username']):
+                update.message.reply_text(f"You are in Board: {board_name}")
+                context.user_data['board_id'] = f"{board_id}"
+                choose_board_action(update, context)
+                return CHOOSING_BOARD_ACTION
+            else:
+                show_list(update, context)
+                return CHOOSING_LISTS
+        else:
+            update.message.reply_text("Please enter something appropriate")
+            choose_board_action(update, context)
+            return CHOOSING_BOARD_ACTION
+    else:
+        logout(update, context)
+        return ConversationHandler.END
     
 def select_board(update, context):
     if ('state' in context.user_data and

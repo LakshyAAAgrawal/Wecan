@@ -25,17 +25,17 @@ connection = None
 cursor = None
 
 queries = {
-    "check_username": "SELECT 1 FROM USERS WHERE id=\"%s\"",
-    "check_login": "SELECT 1 FROM USERS WHERE id=\"%s\" AND password=\"%s\"",
-    "list_boards_of_user_where": 'SELECT id, name FROM BOARDS WHERE id IN (SELECT board_id FROM BOARD_USERS WHERE user_id="%s" AND board_id="%s")', # 1.935 sec
-    "list_boards_of_user_join": 'SELECT A.id, A.name FROM BOARDS AS A INNER JOIN BOARD_USERS AS B ON A.id=B.board_id WHERE B.user_id="%s"', # 0.072 sec
-    "create_board": 'INSERT INTO BOARDS(name, admin_id) VALUES (%s, %s)', # TODO - remove organisation id
-    "add_user_to_board": 'INSERT INTO BOARD_USERS(user_id, board_id) VALUES (%s, %s)',
-    "check_board_without_username": "SELECT 1 FROM BOARDS WHERE name=\"%s\" AND id=\"%s\"", # Less performant
-    "check_board_with_username": 'SELECT 1 FROM BOARDS AS A INNER JOIN BOARD_USERS AS B ON A.id=B.board_id WHERE A.id="%s" AND A.name="%s" AND B.user_id="%s"', # more performant
-    "get_board_name_by_id": "SELECT name FROM BOARDS WHERE id=\"%s\"",
-    "create_list": 'INSERT INTO LISTS(board_id, name, admin_id, label) VALUES ("%s", "%s", "%s", "%s")',
-    "list_lists_of_user_board": 'SELECT id, name FROM LISTS WHERE board_id="%s" AND ("%s", "%s") IN (SELECT user_id, board_id FROM BOARD_USERS);'
+    "check_username": "SELECT 1 FROM USER WHERE user_id=\"%s\"",
+    "check_login": "SELECT 1 FROM USER WHERE user_id=\"%s\" AND passwd=\"%s\"",
+    "list_boards_of_user_where": 'SELECT board_id, board_name FROM BOARD WHERE board_id IN (SELECT board_id FROM BOARD_USER WHERE user_id="%s" AND board_id="%s")', # 1.935 sec
+    "list_boards_of_user_join": 'SELECT A.board_id, A.board_name FROM BOARD AS A INNER JOIN BOARD_USER AS B ON A.board_id=B.board_id WHERE B.user_id="%s"', # 0.072 sec
+    "create_board": 'INSERT INTO BOARD(board_name, board_admin) VALUES (%s, %s)', # TODO - remove organisation id
+    "add_user_to_board": 'INSERT INTO BOARD_USER(user_id, board_id) VALUES (%s, %s)',
+    "check_board_without_username": "SELECT 1 FROM BOARD WHERE board_name=\"%s\" AND board_id=\"%s\"", # Less performant
+    "check_board_with_username": 'SELECT 1 FROM BOARD AS A INNER JOIN BOARD_USER AS B ON A.board_id=B.board_id WHERE A.board_id="%s" AND A.board_name="%s" AND B.user_id="%s"', # more performant
+    "get_board_name_by_id": "SELECT board_name FROM BOARD WHERE board_id=\"%s\"",
+    "create_list": 'INSERT INTO LIST(board_id, list_name, list_admin, list_label) VALUES ("%s", "%s", "%s", "%s")',
+    "list_lists_of_user_board": 'SELECT list_id, list_name FROM LIST WHERE board_id="%s" AND ("%s", "%s") IN (SELECT user_id, board_id FROM BOARD_USER);'
 }
 
 def get_board_name_by_id(board_id):
