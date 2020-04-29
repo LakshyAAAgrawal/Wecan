@@ -9,7 +9,7 @@ from telegram import ReplyKeyboardMarkup, ReplyKeyboardRemove, InlineKeyboardBut
 from telegram import ParseMode
 
 from db_manage import check_username_exists, check_login, fetch_boards_of, create_board_in_db, check_board_exists
-from db_manage import get_board_name_by_id, create_list_in_db, fetch_lists_of
+from db_manage import get_board_name_by_id, create_list_in_db, fetch_lists_of, check_list_exists, get_list_name_by_id
 
 dbConfig = {
     'user': 'root',
@@ -27,7 +27,7 @@ cursor = None
 BEGINMSG = "Hi. Welcome to Wecan. Send \
 /login to begin login process."
 
-USERNAME, PASSWORD, LOGGED_IN, CHOOSING_BOARDS, CREATE_BOARD_ID, CHOOSING_BOARD_ACTION, CREATE_LIST_GET_LABEL, CREATE_LIST_ID, CHOOSING_LISTS = range(9)
+USERNAME, PASSWORD, LOGGED_IN, CHOOSING_BOARDS, CREATE_BOARD_ID, CHOOSING_BOARD_ACTION, CREATE_LIST_GET_LABEL, CREATE_LIST_ID, CHOOSING_LISTS, CHOOSING_LIST_ACTION = range(10)
 
 logging.basicConfig(format = '%(asctime)s - %(name)s - %(levelname)s - %(message)s',
                     level = logging.INFO)
@@ -45,6 +45,19 @@ def exit_board(update, context):
         logout(update, context)
         return ConversationHandler.END
 
+def exit_list(update, context):
+    if ('state' in context.user_data and
+        context.user_data['state'] == 'logged_in' and
+        'username' in context.user_data and
+        'board_id' in context.user_data and
+        'list_id' in context.user_data):
+        del context.user_data['list_id']
+        choose_board_action(update, context)
+        return CHOOSING_BOARD_ACTION
+    else:
+        logout(update, context)
+        return ConversationHandler.END
+    
 def choose_board_action(update, context):
     if ('state' in context.user_data and
         context.user_data['state'] == 'logged_in' and
@@ -68,6 +81,30 @@ def choose_board_action(update, context):
         logout(update, context)
         return ConversationHandler.END
 
+def choose_list_action(update, context):
+    if ('state' in context.user_data and
+        context.user_data['state'] == 'logged_in' and
+        'username' in context.user_data and
+        'board_id' in context.user_data and
+        'list_id' in context.user_data):
+        try:
+            update.message.reply_text(
+                f"Choose action for list: {get_list_name_by_id(context.user_data['list_id'])}",
+                reply_markup = ReplyKeyboardMarkup(
+                    [["Show Cards"], ["Create Card"], ["Go Back to Board"]],
+                    resize_keyboard = True
+                )
+            )
+            return CHOOSING_LIST_ACTION
+        except:
+            update.message.reply_text("Wrong action")
+            logout(update, context)
+            return ConversationHandler.END
+    else:
+        update.message.reply_text("Inappropriate action")
+        logout(update, context)
+        return ConversationHandler.END
+    
 def logged_in_state(update, context):
     update.message.reply_text(
         "Choose action",
@@ -123,6 +160,9 @@ def create_list(update, context):
     else:
         logout(update, context)
         return ConversationHandler.END
+
+def create_card(update, context):
+    pass
 
 def create_list_label(update, context):
     if ('state' in context.user_data and
@@ -218,7 +258,10 @@ def show_list(update, context):
     else:
         logout(update, context)
         return ConversationHandler.END
-    
+
+def show_cards(update, context):
+    pass
+
 def show_boards(update, context):
     if ('state' in context.user_data and
         context.user_data['state'] == 'logged_in' and
@@ -254,11 +297,11 @@ def select_list(update, context):
         if match := pattern.fullmatch(update.message.text):
             list_name = match.group(1)
             list_id = match.group(2)
-            if check_list_exists(board_name, board_id, context.user_data['username']):
-                update.message.reply_text(f"You are in Board: {board_name}")
-                context.user_data['board_id'] = f"{board_id}"
-                choose_board_action(update, context)
-                return CHOOSING_BOARD_ACTION
+            if check_list_exists(context.user_data['board_id'], context.user_data['username'], list_name, list_id):
+                update.message.reply_text(f"You are in List: {list_name}")
+                context.user_data['list_id'] = f"{list_id}"
+                choose_list_action(update, context)
+                return CHOOSING_LIST_ACTION
             else:
                 show_list(update, context)
                 return CHOOSING_LISTS
@@ -375,6 +418,11 @@ def main():
                 MessageHandler(Filters.regex('^(Go Back to Main Menu)$'), exit_board),
                 MessageHandler(Filters.regex('^(Create List)$'), create_list),
                 MessageHandler(Filters.regex('^(Show Lists)$'), show_list)
+            ],
+            CHOOSING_LIST_ACTION: [
+                MessageHandler(Filters.regex('^(Go Back to Board)$'), exit_list),
+                MessageHandler(Filters.regex('^(Create Card)$'), create_card),
+                MessageHandler(Filters.regex('^(Show Cards)$'), show_cards)
             ],
             CREATE_LIST_GET_LABEL: [MessageHandler(Filters.text, create_list_label)],
             CREATE_LIST_ID: [MessageHandler(Filters.text, create_list_id)],

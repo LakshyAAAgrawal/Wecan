@@ -35,7 +35,9 @@ queries = {
     "check_board_with_username": 'SELECT 1 FROM BOARD AS A INNER JOIN BOARD_USER AS B ON A.board_id=B.board_id WHERE A.board_id="%s" AND A.board_name="%s" AND B.user_id="%s"', # more performant
     "get_board_name_by_id": "SELECT board_name FROM BOARD WHERE board_id=\"%s\"",
     "create_list": 'INSERT INTO LIST(board_id, list_name, list_admin, list_label) VALUES ("%s", "%s", "%s", "%s")',
-    "list_lists_of_user_board": 'SELECT list_id, list_name FROM LIST WHERE board_id="%s" AND ("%s", "%s") IN (SELECT user_id, board_id FROM BOARD_USER);'
+    "list_lists_of_user_board": 'SELECT list_id, list_name FROM LIST WHERE board_id="%s" AND ("%s", "%s") IN (SELECT user_id, board_id FROM BOARD_USER)',
+    "check_list_with_username": 'SELECT 1 FROM LIST WHERE board_id="%s" AND list_name="%s" AND list_id="%s" AND ("%s", "%s") IN (SELECT user_id, board_id FROM BOARD_USER)',
+    "get_list_name_by_id": "SELECT list_name FROM LIST WHERE list_id=\"%s\""
 }
 
 def get_board_name_by_id(board_id):
@@ -48,10 +50,27 @@ def get_board_name_by_id(board_id):
     else:
         raise Exception
 
+def get_list_name_by_id(list_id):
+    connect()
+    cursor = connection.cursor()
+    cursor.execute(queries['get_list_name_by_id'] % (list_id))
+    z = cursor.fetchone()
+    if z is not None:
+        return z[0]
+    else:
+        raise Exception
+    
 def check_board_exists(board_name, board_id, username):
     connect()
     cursor = connection.cursor()
     cursor.execute(queries['check_board_with_username'] % (board_id, board_name, username))
+    z = cursor.fetchone()
+    return True if z != None else False
+
+def check_list_exists(board_id, username, list_name, list_id):
+    connect()
+    cursor = connection.cursor()
+    cursor.execute(queries['check_list_with_username'] % (board_id, list_name, list_id, username, board_id))
     z = cursor.fetchone()
     return True if z != None else False
 

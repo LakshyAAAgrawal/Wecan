@@ -1,0 +1,2 @@
+CREATE USER 'bot'@'' IDENTIFIED BY 'password';
+GRANT ALL PRIVILEGES ON * . * TO 'bot'@'';
