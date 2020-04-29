@@ -9,7 +9,7 @@ from telegram import ReplyKeyboardMarkup, ReplyKeyboardRemove, InlineKeyboardBut
 from telegram import ParseMode
 
 from db_manage import check_username_exists, check_login, fetch_boards_of, create_board_in_db, check_board_exists
-from db_manage import get_board_name_by_id
+from db_manage import get_board_name_by_id, create_list_in_db, fetch_lists_of
 
 dbConfig = {
     'user': 'root',
@@ -27,7 +27,7 @@ cursor = None
 BEGINMSG = "Hi. Welcome to Wecan. Send \
 /login to begin login process."
 
-USERNAME, PASSWORD, LOGGED_IN, CHOOSING_BOARDS, CREATE_BOARD_ID, CHOOSING_BOARD_ACTION = range(6)
+USERNAME, PASSWORD, LOGGED_IN, CHOOSING_BOARDS, CREATE_BOARD_ID, CHOOSING_BOARD_ACTION, CREATE_LIST_GET_LABEL, CREATE_LIST_ID, CHOOSING_LISTS = range(9)
 
 logging.basicConfig(format = '%(asctime)s - %(name)s - %(levelname)s - %(message)s',
                     level = logging.INFO)
@@ -110,6 +110,43 @@ def create_board(update, context):
         logout(update, context)
         return ConversationHandler.END
 
+def create_list(update, context):
+    if ('state' in context.user_data and
+        context.user_data['state'] == 'logged_in' and
+        'username' in context.user_data and
+        'board_id' in context.user_data):
+        update.message.reply_text(
+            "Type list name",
+            reply_markup=ReplyKeyboardRemove()
+        )
+        return CREATE_LIST_GET_LABEL
+    else:
+        logout(update, context)
+        return ConversationHandler.END
+
+def create_list_label(update, context):
+    if ('state' in context.user_data and
+        context.user_data['state'] == 'logged_in' and
+        'username' in context.user_data and
+        'board_id' in context.user_data):
+        pattern = re.compile("[0-9A-Za-z]*")
+        if pattern.fullmatch(update.message.text):
+            context.user_data['list_name'] = update.message.text
+            update.message.reply_text(
+                "Enter label for list",
+                reply_markup=ReplyKeyboardRemove()
+            )
+            return CREATE_LIST_ID
+        else:
+            update.message.reply_text(
+                "Enter appropriate name",
+                reply_markup=ReplyKeyboardRemove()
+            )
+            return CREATE_LIST_GET_LABEL
+    else:
+        logout(update, context)
+        return ConversationHandler.END
+    
 def create_board_id(update, context):
     if ('state' in context.user_data and
         context.user_data['state'] == 'logged_in' and
@@ -132,6 +169,56 @@ def create_board_id(update, context):
         logout(update, context)
         return ConversationHandler.END
 
+def create_list_id(update, context):
+    if ('state' in context.user_data and
+        context.user_data['state'] == 'logged_in' and
+        'username' in context.user_data and
+        'board_id' in context.user_data and
+        'list_name' in context.user_data):
+        pattern = re.compile("[0-9A-Za-z]*")
+        if match := pattern.fullmatch(update.message.text):
+            try:
+                if create_list_in_db(context.user_data['username'], context.user_data['board_id'], context.user_data['list_name'], match.group(0)):
+                    update.message.reply_text("List created succefully")
+                else:
+                    update.message.reply_text("The list could not be created")
+            except:
+                update.message.reply_text("There was an error in creating the list")
+            del context.user_data['list_name']
+            choose_board_action(update, context)
+            return CHOOSING_BOARD_ACTION
+        else:
+            update.message.reply_text("Please enter appropriate name")
+            return CREATE_LIST_ID
+    else:
+        logout(update, context)
+        return ConversationHandler.END
+
+def show_list(update, context):
+    if ('state' in context.user_data and
+        context.user_data['state'] == 'logged_in' and
+        'username' in context.user_data and
+        'board_id' in context.user_data):
+        lists = fetch_lists_of(context.user_data['board_id'], context.user_data['username'])
+        if len(lists) > 0:
+            update.message.reply_text(
+                "Select a list, or press \"Go Back\"",
+                #reply_markup=reply_markup
+                reply_markup = ReplyKeyboardMarkup(
+                    [[x[1] + ":" + str(x[0])] for x in lists] + [["Go Back"]],
+                    one_time_keyboard=True,
+                    resize_keyboard=True
+                )
+            )
+            return CHOOSING_LISTS
+        else:
+            update.message.reply_text("No Lists available!")
+            choose_board_action(update, context)
+            return CHOOSING_BOARD_ACTION
+    else:
+        logout(update, context)
+        return ConversationHandler.END
+    
 def show_boards(update, context):
     if ('state' in context.user_data and
         context.user_data['state'] == 'logged_in' and
@@ -158,6 +245,9 @@ def show_boards(update, context):
         logout(update, context)
         return ConversationHandler.END
 
+def select_list(update, context):
+    pass
+    
 def select_board(update, context):
     if ('state' in context.user_data and
         context.user_data['state'] == 'logged_in' and
@@ -225,9 +315,10 @@ def password(update, context):
         return ConversationHandler.END
 
 def logout(update, context):
-    del context.user_data['state']
-    del context.user_data['username']
-    del context.user_data['board_id']
+    context.user_data.clear()
+    # del context.user_data['state']
+    # del context.user_data['username']
+    # del context.user_data['board_id']
     start(update, context)
     return ConversationHandler.END
     
@@ -259,7 +350,15 @@ def main():
                 MessageHandler(Filters.regex('^(Go Back)$'), logged_in_state)
             ],
             CHOOSING_BOARD_ACTION: [
-                MessageHandler(Filters.regex('^(Go Back to Main Menu)$'), exit_board)
+                MessageHandler(Filters.regex('^(Go Back to Main Menu)$'), exit_board),
+                MessageHandler(Filters.regex('^(Create List)$'), create_list),
+                MessageHandler(Filters.regex('^(Show Lists)$'), show_list)
+            ],
+            CREATE_LIST_GET_LABEL: [MessageHandler(Filters.text, create_list_label)],
+            CREATE_LIST_ID: [MessageHandler(Filters.text, create_list_id)],
+            CHOOSING_LISTS: [
+                MessageHandler(Filters.regex('^[0-9A-Za-z]*\:[0-9]*$'), select_list),
+                MessageHandler(Filters.regex('^(Go Back)$'), choose_board_action)
             ]
         },
         fallbacks=[CommandHandler('cancel', logout)]

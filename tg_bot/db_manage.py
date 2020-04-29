@@ -31,8 +31,11 @@ queries = {
     "list_boards_of_user_join": 'SELECT A.id, A.name FROM BOARDS AS A INNER JOIN BOARD_USERS AS B ON A.id=B.board_id WHERE B.user_id="%s"', # 0.072 sec
     "create_board": 'INSERT INTO BOARDS(name, admin_id) VALUES (%s, %s)', # TODO - remove organisation id
     "add_user_to_board": 'INSERT INTO BOARD_USERS(user_id, board_id) VALUES (%s, %s)',
-    "check_board": "SELECT 1 FROM BOARDS WHERE name=\"%s\" AND id=\"%s\"",
-    "get_board_name_by_id": "SELECT name FROM BOARDS WHERE id=\"%s\""
+    "check_board_without_username": "SELECT 1 FROM BOARDS WHERE name=\"%s\" AND id=\"%s\"", # Less performant
+    "check_board_with_username": 'SELECT 1 FROM BOARDS AS A INNER JOIN BOARD_USERS AS B ON A.id=B.board_id WHERE A.id="%s" AND A.name="%s" AND B.user_id="%s"', # more performant
+    "get_board_name_by_id": "SELECT name FROM BOARDS WHERE id=\"%s\"",
+    "create_list": 'INSERT INTO LISTS(board_id, name, admin_id, label) VALUES ("%s", "%s", "%s", "%s")',
+    "list_lists_of_user_board": 'SELECT id, name FROM LISTS WHERE board_id="%s" AND ("%s", "%s") IN (SELECT user_id, board_id FROM BOARD_USERS);'
 }
 
 def get_board_name_by_id(board_id):
@@ -48,7 +51,7 @@ def get_board_name_by_id(board_id):
 def check_board_exists(board_name, board_id, username):
     connect()
     cursor = connection.cursor()
-    cursor.execute(queries['check_board'] % (board_name, board_id))
+    cursor.execute(queries['check_board_with_username'] % (board_id, board_name, username))
     z = cursor.fetchone()
     return True if z != None else False
 
@@ -85,13 +88,42 @@ def create_board_in_db(username, board_name):
                 cur.close()
             conn.close()
     return False
-                
+
+def create_list_in_db(username, board_id, list_name, label):
+    try:
+        conn = mysql.connector.connect(**dbConfig)
+        conn.autocommit = False
+        cur = conn.cursor()
+        print(queries["create_list"] % (board_id, list_name, username, label))
+        cur.execute(queries["create_list"] % (board_id, list_name, username, label))
+        conn.commit()
+        return True
+    except mysql.connector.Error as error :
+        print("Failed to update record to database rollback: {}".format(error))
+        conn.rollback()
+        return False
+    except Exception as error2:
+        print("Some other error: {}".format(error2))
+        return False
+    finally:
+        if(conn.is_connected()):
+            if cur is not None:
+                cur.close()
+            conn.close()
+    return False
+
 def fetch_boards_of(username):
     connect()
     cursor = connection.cursor()
     cursor.execute(queries['list_boards_of_user_join'] % (username))
     return cursor.fetchall()
-                
+
+def fetch_lists_of(board_id, username):
+    connect()
+    cursor = connection.cursor()
+    cursor.execute(queries['list_lists_of_user_board'] % (board_id, username, board_id))
+    return cursor.fetchall()
+
 def check_login(username, password):
     connect()
     cursor = connection.cursor()
