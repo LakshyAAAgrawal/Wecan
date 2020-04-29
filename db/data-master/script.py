@@ -107,7 +107,7 @@ for i in range(1,201):
 
 cards['list_id'] = list_id
 cards['card_admin_id'] = card_admin
-cards['multimedia_id'] = [random.randint(1,801) for i in range(800)]
+cards['multimedia_id'] = [random.randint(1,800) for i in range(800)]
 cards.to_csv('sanitize/card.csv', index=False)
 
 
@@ -115,7 +115,7 @@ cards.to_csv('sanitize/card.csv', index=False)
 announcements = pd.read_csv('ANNOUNCEMENT.csv')
 announcements['board_id'] = [i for i in range(1,51)]
 announcements['user_id'] = board_admin
-announcements['multimedia_id'] = [random.randint(1,801) for i in range(50)]
+announcements['multimedia_id'] = [random.randint(1,800) for i in range(50)]
 announcements.to_csv('sanitize/announcement.csv', index=False)
 
 
