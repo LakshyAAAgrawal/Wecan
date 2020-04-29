@@ -31,7 +31,26 @@ queries = {
     "list_boards_of_user_join": 'SELECT A.id, A.name FROM BOARDS AS A INNER JOIN BOARD_USERS AS B ON A.id=B.board_id WHERE B.user_id="%s"', # 0.072 sec
     "create_board": 'INSERT INTO BOARDS(name, admin_id) VALUES (%s, %s)', # TODO - remove organisation id
     "add_user_to_board": 'INSERT INTO BOARD_USERS(user_id, board_id) VALUES (%s, %s)',
+    "check_board": "SELECT 1 FROM BOARDS WHERE name=\"%s\" AND id=\"%s\"",
+    "get_board_name_by_id": "SELECT name FROM BOARDS WHERE id=\"%s\""
 }
+
+def get_board_name_by_id(board_id):
+    connect()
+    cursor = connection.cursor()
+    cursor.execute(queries['get_board_name_by_id'] % (board_id))
+    z = cursor.fetchone()
+    if z is not None:
+        return z[0]
+    else:
+        raise Exception
+
+def check_board_exists(board_name, board_id, username):
+    connect()
+    cursor = connection.cursor()
+    cursor.execute(queries['check_board'] % (board_name, board_id))
+    z = cursor.fetchone()
+    return True if z != None else False
 
 def check_username_exists(username):
     connect()

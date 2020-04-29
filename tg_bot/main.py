@@ -8,7 +8,8 @@ from telegram.ext import ConversationHandler, CallbackQueryHandler
 from telegram import ReplyKeyboardMarkup, ReplyKeyboardRemove, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram import ParseMode
 
-from db_manage import check_username_exists, check_login, fetch_boards_of, create_board_in_db
+from db_manage import check_username_exists, check_login, fetch_boards_of, create_board_in_db, check_board_exists
+from db_manage import get_board_name_by_id
 
 dbConfig = {
     'user': 'root',
@@ -26,28 +27,65 @@ cursor = None
 BEGINMSG = "Hi. Welcome to Wecan. Send \
 /login to begin login process."
 
-USERNAME, PASSWORD, LOGGED_IN, CHOOSING_BOARDS, CREATE_BOARD_ID = range(5)
+USERNAME, PASSWORD, LOGGED_IN, CHOOSING_BOARDS, CREATE_BOARD_ID, CHOOSING_BOARD_ACTION = range(6)
 
 logging.basicConfig(format = '%(asctime)s - %(name)s - %(levelname)s - %(message)s',
                     level = logging.INFO)
 logger = logging.getLogger(__name__)
+
+def exit_board(update, context):
+    if ('state' in context.user_data and
+        context.user_data['state'] == 'logged_in' and
+        'username' in context.user_data and
+        'board_id' in context.user_data):
+        del context.user_data['board_id']
+        logged_in_state(update, context)
+        return LOGGED_IN
+    else:
+        logout(update, context)
+        return ConversationHandler.END
+
+def choose_board_action(update, context):
+    if ('state' in context.user_data and
+        context.user_data['state'] == 'logged_in' and
+        'username' in context.user_data and
+        'board_id' in context.user_data):
+        try:
+            update.message.reply_text(
+                f"Choose action for board: {get_board_name_by_id(context.user_data['board_id'])}",
+                reply_markup = ReplyKeyboardMarkup(
+                    [["Show Lists"], ["Create List"], ["Go Back to Main Menu"]],
+                    resize_keyboard = True
+                )
+            )
+            return CHOOSING_BOARD_ACTION
+        except:
+            update.message.reply_text("Wrong action")
+            logout(update, context)
+            return ConversationHandler.END
+    else:
+        update.message.reply_text("Inappropriate action")
+        logout(update, context)
+        return ConversationHandler.END
 
 def logged_in_state(update, context):
     update.message.reply_text(
         "Choose action",
         reply_markup = ReplyKeyboardMarkup(
             [['Show boards'], ['logout'], ['Create Board']],
-        )
+            resize_keyboard=True
+        ),
     )
+    return LOGGED_IN
     
 def start(update, context):
     update.message.reply_text(
         BEGINMSG,
         reply_markup = ReplyKeyboardMarkup(
             [['/login']],
-            one_time_keyboard=True
+            one_time_keyboard=True,
+            resize_keyboard=True
         ),
-        resize_keyboard = True
     )
 
 def callback_queries(update, context):
@@ -103,10 +141,15 @@ def show_boards(update, context):
             board_keys = map(lambda x: [InlineKeyboardButton(x[1], callback_data=("BOARD_ID:" + str(x[0])))], boards)
             reply_markup = InlineKeyboardMarkup(board_keys)
             update.message.reply_text(
-                "Your Boards:",
-                reply_markup=reply_markup
+                "Select a board, or press \"Go Back\"",
+                #reply_markup=reply_markup
+                reply_markup = ReplyKeyboardMarkup(
+                    [[x[1] + ":" + str(x[0])] for x in boards] + [["Go Back"]],
+                    one_time_keyboard=True,
+                    resize_keyboard=True
+                )
             )
-            return LOGGED_IN
+            return CHOOSING_BOARDS
         else:
             update.message.reply_text("No Boards available!")
             logged_in_state(update, context)
@@ -116,9 +159,29 @@ def show_boards(update, context):
         return ConversationHandler.END
 
 def select_board(update, context):
-    update.message.reply_text(update.message.text)
-    pass
-
+    if ('state' in context.user_data and
+        context.user_data['state'] == 'logged_in' and
+        'username' in context.user_data):
+        pattern = re.compile('^([0-9A-Za-z]*)\:([0-9]*)$')
+        if match := pattern.fullmatch(update.message.text):
+            board_name = match.group(1)
+            board_id = match.group(2)
+            if check_board_exists(board_name, board_id, context.user_data['username']):
+                update.message.reply_text(f"You are in Board: {board_name}")
+                context.user_data['board_id'] = f"{board_id}"
+                choose_board_action(update, context)
+                return CHOOSING_BOARD_ACTION
+            else:
+                show_boards(update, context)
+                return CHOOSING_BOARDS
+        else:
+            update.message.reply_text("Please enter something appropriate")
+            logged_in_state(update, context)
+            return LOGGED_IN
+    else:
+        logout(update, context)
+        return ConversationHandler.END
+        
 def login(update, context):
     update.message.reply_text(
         "Type username",
@@ -164,6 +227,7 @@ def password(update, context):
 def logout(update, context):
     del context.user_data['state']
     del context.user_data['username']
+    del context.user_data['board_id']
     start(update, context)
     return ConversationHandler.END
     
@@ -188,9 +252,15 @@ def main():
                 MessageHandler(Filters.regex('^(Show boards)$'), show_boards),
                 MessageHandler(Filters.regex('^(logout)$'), logout),
                 MessageHandler(Filters.regex('^(Create Board)$'), create_board),
-                MessageHandler(Filters.regex('^BOARD_ID\:[0-9]*$'), select_board)
             ],
-            CREATE_BOARD_ID: [MessageHandler(Filters.text, create_board_id)]
+            CREATE_BOARD_ID: [MessageHandler(Filters.text, create_board_id)],
+            CHOOSING_BOARDS: [
+                MessageHandler(Filters.regex('^[0-9A-Za-z]*\:[0-9]*$'), select_board),
+                MessageHandler(Filters.regex('^(Go Back)$'), logged_in_state)
+            ],
+            CHOOSING_BOARD_ACTION: [
+                MessageHandler(Filters.regex('^(Go Back to Main Menu)$'), exit_board)
+            ]
         },
         fallbacks=[CommandHandler('cancel', logout)]
     )
