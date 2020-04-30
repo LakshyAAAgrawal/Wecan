@@ -105,7 +105,7 @@ def choose_list_action(update, context):
             update.message.reply_text(
                 f"Choose action for list: {get_list_name_by_id(context.user_data['list_id'])}",
                 reply_markup = ReplyKeyboardMarkup(
-                    [["Show Cards"], ["Create Card"], ["Go Back to Board"]],
+                    [["Show Cards"], ["Go Back to Board"]],
                     resize_keyboard = True
                 )
             )
@@ -370,15 +370,15 @@ def show_pending_deadlines(update, context):
         context.user_data['state'] == 'logged_in' and
         'username' in context.user_data):
         pending_deadlines = fetch_pending_deadlines(context.user_data['username'])
-        print(pending_deadlines)
         if len(pending_deadlines) > 0:
-            deadline_keys = map(lambda x: [InlineKeyboardButton(x[1] + " " + str(x[2]), callback_data=("CARD_ID:" + str(x[0])))], pending_deadlines)
-            reply_markup = InlineKeyboardMarkup(deadline_keys)
-            update.message.reply_text(
-                "Your pending deadlines",
-                #reply_markup=reply_markup
-                reply_markup = reply_markup
-            )
+            update.message.reply_text("Pending deadlines:")
+            for x in pending_deadlines:
+                update.message.reply_text(
+                    str(x[2]),
+                    reply_markup = InlineKeyboardMarkup([[
+                        InlineKeyboardButton(x[1], callback_data=("CARD_ID:" + str(x[0])))
+                    ]])
+                )
             return LOGGED_IN
         else:
             update.message.reply_text("No Pending deadlines! Hurray")
