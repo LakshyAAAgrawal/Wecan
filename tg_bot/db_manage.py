@@ -37,7 +37,8 @@ queries = {
     "create_list": 'INSERT INTO LIST(board_id, list_name, list_admin, list_label) VALUES ("%s", "%s", "%s", "%s")',
     "list_lists_of_user_board": 'SELECT list_id, list_name FROM LIST WHERE board_id="%s" AND ("%s", "%s") IN (SELECT user_id, board_id FROM BOARD_USER)',
     "check_list_with_username": 'SELECT 1 FROM LIST WHERE board_id="%s" AND list_name="%s" AND list_id="%s" AND ("%s", "%s") IN (SELECT user_id, board_id FROM BOARD_USER)',
-    "get_list_name_by_id": "SELECT list_name FROM LIST WHERE list_id=\"%s\""
+    "get_list_name_by_id": "SELECT list_name FROM LIST WHERE list_id=\"%s\"",
+    'list_cards_of_list': 'SELECT card_id, card_name FROM CARD WHERE list_id="%s" AND 1 IN (SELECT 1 FROM LIST WHERE list_id="%s" AND board_id="%s") AND 1 IN (SELECT 1 FROM BOARD_USER WHERE board_id="%s" AND user_id="%s")'
 }
 
 def get_board_name_by_id(board_id):
@@ -141,6 +142,12 @@ def fetch_lists_of(board_id, username):
     connect()
     cursor = connection.cursor()
     cursor.execute(queries['list_lists_of_user_board'] % (board_id, username, board_id))
+    return cursor.fetchall()
+
+def fetch_cards_of(username, board_id, list_id):
+    connect()
+    cursor = connection.cursor()
+    cursor.execute(queries['list_cards_of_list'] % (list_id, list_id, board_id, board_id, username))
     return cursor.fetchall()
 
 def check_login(username, password):

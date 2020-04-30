@@ -9,7 +9,7 @@ from telegram import ReplyKeyboardMarkup, ReplyKeyboardRemove, InlineKeyboardBut
 from telegram import ParseMode
 
 from db_manage import check_username_exists, check_login, fetch_boards_of, create_board_in_db, check_board_exists
-from db_manage import get_board_name_by_id, create_list_in_db, fetch_lists_of, check_list_exists, get_list_name_by_id
+from db_manage import get_board_name_by_id, create_list_in_db, fetch_lists_of, check_list_exists, get_list_name_by_id, fetch_cards_of
 
 dbConfig = {
     'user': 'root',
@@ -27,7 +27,7 @@ cursor = None
 BEGINMSG = "Hi. Welcome to Wecan. Send \
 /login to begin login process."
 
-USERNAME, PASSWORD, LOGGED_IN, CHOOSING_BOARDS, CREATE_BOARD_ID, CHOOSING_BOARD_ACTION, CREATE_LIST_GET_LABEL, CREATE_LIST_ID, CHOOSING_LISTS, CHOOSING_LIST_ACTION = range(10)
+USERNAME, PASSWORD, LOGGED_IN, CHOOSING_BOARDS, CREATE_BOARD_ID, CHOOSING_BOARD_ACTION, CREATE_LIST_GET_LABEL, CREATE_LIST_ID, CHOOSING_LISTS, CHOOSING_LIST_ACTION, CHOOSING_CARDS = range(11)
 
 logging.basicConfig(format = '%(asctime)s - %(name)s - %(levelname)s - %(message)s',
                     level = logging.INFO)
@@ -260,7 +260,30 @@ def show_list(update, context):
         return ConversationHandler.END
 
 def show_cards(update, context):
-    pass
+    if ('state' in context.user_data and
+        context.user_data['state'] == 'logged_in' and
+        'username' in context.user_data and
+        'board_id' in context.user_data and
+        'list_id' in context.user_data):
+        cards = fetch_cards_of(context.user_data['username'], context.user_data['board_id'], context.user_data['list_id'])
+        if len(cards) > 0:
+            update.message.reply_text(
+                "Select a card, or press \"Go Back\"",
+                reply_markup = ReplyKeyboardMarkup(
+                    [[x[1] + ":" + str(x[0])] for x in cards] + [["Go Back"]],
+                    one_time_keyboard=True,
+                    resize_keyboard=True
+                )
+            )
+            return CHOOSING_CARDS
+        else:
+            update.message.reply_text("No Lists available!")
+            choose_list_action(update, context)
+            return CHOOSING_LIST_ACTION
+    else:
+        logout(update, context)
+        return ConversationHandler.END
+
 
 def show_boards(update, context):
     if ('state' in context.user_data and
@@ -293,7 +316,7 @@ def select_list(update, context):
         context.user_data['state'] == 'logged_in' and
         'username' in context.user_data and
         'board_id' in context.user_data):
-        pattern = re.compile('^([0-9A-Za-z]*)\:([0-9]*)$')
+        pattern = re.compile('^([0-9A-Za-z ]*)\:([0-9]*)$')
         if match := pattern.fullmatch(update.message.text):
             list_name = match.group(1)
             list_id = match.group(2)
@@ -312,12 +335,15 @@ def select_list(update, context):
     else:
         logout(update, context)
         return ConversationHandler.END
-    
+
+def select_card(update, context):
+    pass
+
 def select_board(update, context):
     if ('state' in context.user_data and
         context.user_data['state'] == 'logged_in' and
         'username' in context.user_data):
-        pattern = re.compile('^([0-9A-Za-z]*)\:([0-9]*)$')
+        pattern = re.compile('^([0-9A-Za-z ]*)\:([0-9]*)$')
         if match := pattern.fullmatch(update.message.text):
             board_name = match.group(1)
             board_id = match.group(2)
@@ -411,7 +437,7 @@ def main():
             ],
             CREATE_BOARD_ID: [MessageHandler(Filters.text, create_board_id)],
             CHOOSING_BOARDS: [
-                MessageHandler(Filters.regex('^[0-9A-Za-z]*\:[0-9]*$'), select_board),
+                MessageHandler(Filters.regex('^[0-9A-Za-z ]*\:[0-9]*$'), select_board),
                 MessageHandler(Filters.regex('^(Go Back)$'), logged_in_state)
             ],
             CHOOSING_BOARD_ACTION: [
@@ -427,8 +453,12 @@ def main():
             CREATE_LIST_GET_LABEL: [MessageHandler(Filters.text, create_list_label)],
             CREATE_LIST_ID: [MessageHandler(Filters.text, create_list_id)],
             CHOOSING_LISTS: [
-                MessageHandler(Filters.regex('^[0-9A-Za-z]*\:[0-9]*$'), select_list),
+                MessageHandler(Filters.regex('^[0-9A-Za-z ]*\:[0-9]*$'), select_list),
                 MessageHandler(Filters.regex('^(Go Back)$'), choose_board_action)
+            ],
+            CHOOSING_CARDS: [
+                MessageHandler(Filters.regex('^[0-9A-Za-z ]*\:[0-9]*$'), select_card),
+                MessageHandler(Filters.regex('^(Go Back)$'), choose_list_action)
             ]
         },
         fallbacks=[CommandHandler('cancel', logout)]
