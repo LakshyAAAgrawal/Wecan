@@ -8,8 +8,8 @@ from telegram.ext import ConversationHandler, CallbackQueryHandler
 from telegram import ReplyKeyboardMarkup, ReplyKeyboardRemove, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram import ParseMode
 
-from db_manage import check_username_exists, check_login, fetch_boards_of, create_board_in_db, check_board_exists
-from db_manage import get_board_name_by_id, create_list_in_db, fetch_lists_of, check_list_exists, get_list_name_by_id, fetch_cards_of
+from db_manage import check_username_exists, check_login, fetch_boards_of, create_board_in_db, check_board_exists, check_card_exists
+from db_manage import get_board_name_by_id, create_list_in_db, fetch_lists_of, check_list_exists, get_list_name_by_id, fetch_cards_of, fetch_card
 
 dbConfig = {
     'user': 'root',
@@ -27,7 +27,7 @@ cursor = None
 BEGINMSG = "Hi. Welcome to Wecan. Send \
 /login to begin login process."
 
-USERNAME, PASSWORD, LOGGED_IN, CHOOSING_BOARDS, CREATE_BOARD_ID, CHOOSING_BOARD_ACTION, CREATE_LIST_GET_LABEL, CREATE_LIST_ID, CHOOSING_LISTS, CHOOSING_LIST_ACTION, CHOOSING_CARDS = range(11)
+USERNAME, PASSWORD, LOGGED_IN, CHOOSING_BOARDS, CREATE_BOARD_ID, CHOOSING_BOARD_ACTION, CREATE_LIST_GET_LABEL, CREATE_LIST_ID, CHOOSING_LISTS, CHOOSING_LIST_ACTION, CHOOSING_CARDS, CHOOSING_CARD_ACTION = range(12)
 
 logging.basicConfig(format = '%(asctime)s - %(name)s - %(levelname)s - %(message)s',
                     level = logging.INFO)
@@ -54,6 +54,20 @@ def exit_list(update, context):
         del context.user_data['list_id']
         choose_board_action(update, context)
         return CHOOSING_BOARD_ACTION
+    else:
+        logout(update, context)
+        return ConversationHandler.END
+
+def exit_card(update, context):
+    if ('state' in context.user_data and
+        context.user_data['state'] == 'logged_in' and
+        'username' in context.user_data and
+        'board_id' in context.user_data and
+        'list_id' in context.user_data and
+        'card_id' in context.user_data):
+        del context.user_data['card_id']
+        choose_list_action(update, context)
+        return CHOOSING_LIST_ACTION
     else:
         logout(update, context)
         return ConversationHandler.END
@@ -104,7 +118,40 @@ def choose_list_action(update, context):
         update.message.reply_text("Inappropriate action")
         logout(update, context)
         return ConversationHandler.END
-    
+
+def choose_card_action(update, context):
+    if ('state' in context.user_data and
+        context.user_data['state'] == 'logged_in' and
+        'username' in context.user_data and
+        'board_id' in context.user_data and
+        'list_id' in context.user_data and
+        'card_id' in context.user_data):
+        try:
+            card_name, card_text, comments = fetch_card(context.user_data['card_id'])
+            response_text = (
+                f"*{card_name}*\n\n" +
+                f"{card_text}\n\nComments:\n" +
+                "\n\n".join([x[0] + ": " + x[1] for x in comments])
+            )
+            update.message.reply_text(
+                response_text,
+                reply_markup = ReplyKeyboardMarkup(
+                    [["Go Back to List"]],
+                    resize_keyboard = True
+                ),
+                parse_mode = ParseMode.MARKDOWN
+            )
+            return CHOOSING_CARD_ACTION
+        except:
+            update.message.reply_text("Wrong action")
+            logout(update, context)
+            return ConversationHandler.END
+    else:
+        update.message.reply_text("Inappropriate action")
+        logout(update, context)
+        return ConversationHandler.END
+
+
 def logged_in_state(update, context):
     update.message.reply_text(
         "Choose action",
@@ -316,7 +363,7 @@ def select_list(update, context):
         context.user_data['state'] == 'logged_in' and
         'username' in context.user_data and
         'board_id' in context.user_data):
-        pattern = re.compile('^([0-9A-Za-z ]*)\:([0-9]*)$')
+        pattern = re.compile('^([^\:]*)\:([0-9]*)$')
         if match := pattern.fullmatch(update.message.text):
             list_name = match.group(1)
             list_id = match.group(2)
@@ -337,13 +384,36 @@ def select_list(update, context):
         return ConversationHandler.END
 
 def select_card(update, context):
-    pass
+    if ('state' in context.user_data and
+        context.user_data['state'] == 'logged_in' and
+        'username' in context.user_data and
+        'board_id' in context.user_data and
+        'list_id' in context.user_data):
+        pattern = re.compile('^([^\:]*)\:([0-9]*)$')
+        if match := pattern.fullmatch(update.message.text):
+            card_name = match.group(1)
+            card_id = match.group(2)
+            if check_card_exists(context.user_data['username'], context.user_data['board_id'], context.user_data['list_id'], card_id, card_name):
+                update.message.reply_text(f"You are in Card: {card_name}")
+                context.user_data['card_id'] = f"{card_id}"
+                choose_card_action(update, context)
+                return CHOOSING_CARD_ACTION
+            else:
+                show_cards(update, context)
+                return CHOOSING_CARDS
+        else:
+            update.message.reply_text("Please enter something appropriate")
+            choose_list_action(update, context)
+            return CHOOSING_LIST_ACTION
+    else:
+        logout(update, context)
+        return ConversationHandler.END
 
 def select_board(update, context):
     if ('state' in context.user_data and
         context.user_data['state'] == 'logged_in' and
         'username' in context.user_data):
-        pattern = re.compile('^([0-9A-Za-z ]*)\:([0-9]*)$')
+        pattern = re.compile('^([^\:]*)\:([0-9]*)$')
         if match := pattern.fullmatch(update.message.text):
             board_name = match.group(1)
             board_id = match.group(2)
@@ -437,7 +507,7 @@ def main():
             ],
             CREATE_BOARD_ID: [MessageHandler(Filters.text, create_board_id)],
             CHOOSING_BOARDS: [
-                MessageHandler(Filters.regex('^[0-9A-Za-z ]*\:[0-9]*$'), select_board),
+                MessageHandler(Filters.regex('^[^\:]*\:[0-9]*$'), select_board),
                 MessageHandler(Filters.regex('^(Go Back)$'), logged_in_state)
             ],
             CHOOSING_BOARD_ACTION: [
@@ -453,13 +523,16 @@ def main():
             CREATE_LIST_GET_LABEL: [MessageHandler(Filters.text, create_list_label)],
             CREATE_LIST_ID: [MessageHandler(Filters.text, create_list_id)],
             CHOOSING_LISTS: [
-                MessageHandler(Filters.regex('^[0-9A-Za-z ]*\:[0-9]*$'), select_list),
+                MessageHandler(Filters.regex('^[^\:]*\:[0-9]*$'), select_list),
                 MessageHandler(Filters.regex('^(Go Back)$'), choose_board_action)
             ],
             CHOOSING_CARDS: [
-                MessageHandler(Filters.regex('^[0-9A-Za-z ]*\:[0-9]*$'), select_card),
+                MessageHandler(Filters.regex('^[^\:]*\:[0-9]*$'), select_card),
                 MessageHandler(Filters.regex('^(Go Back)$'), choose_list_action)
-            ]
+            ],
+            CHOOSING_CARD_ACTION: [
+                MessageHandler(Filters.regex('^(Go Back to List)$'), exit_card),
+            ],
         },
         fallbacks=[CommandHandler('cancel', logout)]
     )

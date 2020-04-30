@@ -38,8 +38,20 @@ queries = {
     "list_lists_of_user_board": 'SELECT list_id, list_name FROM LIST WHERE board_id="%s" AND ("%s", "%s") IN (SELECT user_id, board_id FROM BOARD_USER)',
     "check_list_with_username": 'SELECT 1 FROM LIST WHERE board_id="%s" AND list_name="%s" AND list_id="%s" AND ("%s", "%s") IN (SELECT user_id, board_id FROM BOARD_USER)',
     "get_list_name_by_id": "SELECT list_name FROM LIST WHERE list_id=\"%s\"",
-    'list_cards_of_list': 'SELECT card_id, card_name FROM CARD WHERE list_id="%s" AND 1 IN (SELECT 1 FROM LIST WHERE list_id="%s" AND board_id="%s") AND 1 IN (SELECT 1 FROM BOARD_USER WHERE board_id="%s" AND user_id="%s")'
+    'list_cards_of_list': 'SELECT card_id, card_name FROM CARD WHERE list_id="%s" AND 1 IN (SELECT 1 FROM LIST WHERE list_id="%s" AND board_id="%s") AND 1 IN (SELECT 1 FROM BOARD_USER WHERE board_id="%s" AND user_id="%s")',
+    "check_card_with_username": 'SELECT 1 FROM CARD WHERE card_id="%s" AND card_name="%s" AND list_id="%s" AND ("%s", "%s") IN (SELECT user_id, board_id FROM BOARD_USER) AND ("%s", "%s") IN (SELECT list_id, board_id FROM LIST)',
+    'get_card_name_and_text_by_id': 'SELECT card_name, text FROM CARD where card_id="%s"',
+    'get_card_comment_by_card_id': 'SELECT B.full_name, A.text FROM CARD_COMMENT AS A INNER JOIN USER AS B ON A.user_id=B.user_id WHERE A.card_id="%s"'
 }
+
+def fetch_card(card_id):
+    connect()
+    cursor = connection.cursor()
+    cursor.execute(queries['get_card_name_and_text_by_id'] % (card_id))
+    card_name, card_text = cursor.fetchone()
+    cursor.execute(queries['get_card_comment_by_card_id'] % (card_id))
+    comments = cursor.fetchall()
+    return card_name, card_text, comments
 
 def get_board_name_by_id(board_id):
     connect()
@@ -72,6 +84,13 @@ def check_list_exists(board_id, username, list_name, list_id):
     connect()
     cursor = connection.cursor()
     cursor.execute(queries['check_list_with_username'] % (board_id, list_name, list_id, username, board_id))
+    z = cursor.fetchone()
+    return True if z != None else False
+
+def check_card_exists(username, board_id, list_id, card_id, card_name):
+    connect()
+    cursor = connection.cursor()
+    cursor.execute(queries['check_card_with_username'] % (card_id, card_name, list_id, username, board_id, list_id, board_id))
     z = cursor.fetchone()
     return True if z != None else False
 
