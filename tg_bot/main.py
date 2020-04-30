@@ -9,7 +9,7 @@ from telegram import ReplyKeyboardMarkup, ReplyKeyboardRemove, InlineKeyboardBut
 from telegram import ParseMode
 
 from db_manage import check_username_exists, check_login, fetch_boards_of, create_board_in_db, check_board_exists, check_card_exists
-from db_manage import get_board_name_by_id, create_list_in_db, fetch_lists_of, check_list_exists, get_list_name_by_id, fetch_cards_of, fetch_card
+from db_manage import get_board_name_by_id, create_list_in_db, fetch_lists_of, check_list_exists, get_list_name_by_id, fetch_cards_of, fetch_card, fetch_pending_deadlines
 
 dbConfig = {
     'user': 'root',
@@ -156,7 +156,7 @@ def logged_in_state(update, context):
     update.message.reply_text(
         "Choose action",
         reply_markup = ReplyKeyboardMarkup(
-            [['Show boards'], ['logout'], ['Create Board']],
+            [['Show boards'], ['Show pending deadlines'], ['Create Board'], ['logout']],
             resize_keyboard=True
         ),
     )
@@ -173,14 +173,22 @@ def start(update, context):
     )
 
 def callback_queries(update, context):
-    pattern = re.compile("BOARD_ID\:([0-9]*)")
+    card_id_filter = re.compile("CARD_ID\:([0-9]*)")
     query = update.callback_query
-    if match:=pattern.search(query.data):
-        board_id = match.group(1)
-        print(board_id)
+    if match:=card_id_filter.search(query.data):
+        card_id = match.group(1)
+        print(card_id)
         query.answer()
-        context.bot.send_message(update.callback_query.id, "Selected option: {}".format(query.data))
-    
+        card_name, card_text, comments = fetch_card(card_id)
+        response_text = (
+            f"*{card_name}*\n\n" +
+            f"{card_text}\n\n*Comments*:\n" +
+            "\n\n".join(["__" + x[0] + "__" + ": " + x[1] for x in comments])
+        )
+        query.edit_message_text(response_text, parse_mode = ParseMode.MARKDOWN)
+    else:
+        query.answer()
+        
 def create_board(update, context):
     if ('state' in context.user_data and
         context.user_data['state'] == 'logged_in' and
@@ -331,7 +339,6 @@ def show_cards(update, context):
         logout(update, context)
         return ConversationHandler.END
 
-
 def show_boards(update, context):
     if ('state' in context.user_data and
         context.user_data['state'] == 'logged_in' and
@@ -358,6 +365,29 @@ def show_boards(update, context):
         logout(update, context)
         return ConversationHandler.END
 
+def show_pending_deadlines(update, context):
+    if ('state' in context.user_data and
+        context.user_data['state'] == 'logged_in' and
+        'username' in context.user_data):
+        pending_deadlines = fetch_pending_deadlines(context.user_data['username'])
+        print(pending_deadlines)
+        if len(pending_deadlines) > 0:
+            deadline_keys = map(lambda x: [InlineKeyboardButton(x[1] + " " + str(x[2]), callback_data=("CARD_ID:" + str(x[0])))], pending_deadlines)
+            reply_markup = InlineKeyboardMarkup(deadline_keys)
+            update.message.reply_text(
+                "Your pending deadlines",
+                #reply_markup=reply_markup
+                reply_markup = reply_markup
+            )
+            return LOGGED_IN
+        else:
+            update.message.reply_text("No Pending deadlines! Hurray")
+            logged_in_state(update, context)
+            return LOGGED_IN
+    else:
+        logout(update, context)
+        return ConversationHandler.END
+    
 def select_list(update, context):
     if ('state' in context.user_data and
         context.user_data['state'] == 'logged_in' and
@@ -504,6 +534,7 @@ def main():
                 MessageHandler(Filters.regex('^(Show boards)$'), show_boards),
                 MessageHandler(Filters.regex('^(logout)$'), logout),
                 MessageHandler(Filters.regex('^(Create Board)$'), create_board),
+                MessageHandler(Filters.regex('^(Show pending deadlines)$'), show_pending_deadlines)
             ],
             CREATE_BOARD_ID: [MessageHandler(Filters.text, create_board_id)],
             CHOOSING_BOARDS: [

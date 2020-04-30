@@ -20,7 +20,7 @@ dbConfig_docker = {
     #'port': '32000',
     'database': 'wecan'
 }
-dbConfig = dbConfig_docker
+dbConfig = dbConfig_local
 connection = None
 cursor = None
 
@@ -41,8 +41,15 @@ queries = {
     'list_cards_of_list': 'SELECT card_id, card_name FROM CARD WHERE list_id="%s" AND 1 IN (SELECT 1 FROM LIST WHERE list_id="%s" AND board_id="%s") AND 1 IN (SELECT 1 FROM BOARD_USER WHERE board_id="%s" AND user_id="%s")',
     "check_card_with_username": 'SELECT 1 FROM CARD WHERE card_id="%s" AND card_name="%s" AND list_id="%s" AND ("%s", "%s") IN (SELECT user_id, board_id FROM BOARD_USER) AND ("%s", "%s") IN (SELECT list_id, board_id FROM LIST)',
     'get_card_name_and_text_by_id': 'SELECT card_name, text FROM CARD where card_id="%s"',
-    'get_card_comment_by_card_id': 'SELECT B.full_name, A.text FROM CARD_COMMENT AS A INNER JOIN USER AS B ON A.user_id=B.user_id WHERE A.card_id="%s"'
+    'get_card_comment_by_card_id': 'SELECT B.full_name, A.text FROM CARD_COMMENT AS A INNER JOIN USER AS B ON A.user_id=B.user_id WHERE A.card_id="%s"',
+    'fetch_pending_deadlines': 'SELECT CARD.card_id, CARD.card_name, DEADLINE.due_date FROM DEADLINE, CARD, LIST, BOARD, BOARD_USER WHERE DEADLINE.due_date > CURTIME() AND DEADLINE.if_completed = FALSE AND DEADLINE.card_id = CARD.card_id AND CARD.list_id = LIST.list_id AND LIST.board_id = BOARD.board_id AND BOARD.board_id = BOARD_USER.board_id AND BOARD_USER.user_id="%s"'
 }
+
+def fetch_pending_deadlines(username):
+    connect()
+    cursor = connection.cursor()
+    cursor.execute(queries['fetch_pending_deadlines'] % (username))
+    return cursor.fetchall()
 
 def fetch_card(card_id):
     connect()
