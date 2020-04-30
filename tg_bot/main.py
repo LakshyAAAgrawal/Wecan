@@ -130,8 +130,8 @@ def choose_card_action(update, context):
             card_name, card_text, comments = fetch_card(context.user_data['card_id'])
             response_text = (
                 f"*{card_name}*\n\n" +
-                f"{card_text}\n\nComments:\n" +
-                "\n\n".join([x[0] + ": " + x[1] for x in comments])
+                f"{card_text}\n\n*Comments*:\n" +
+                "\n\n".join(["__" + x[0] + "__" + ": " + x[1] for x in comments])
             )
             update.message.reply_text(
                 response_text,

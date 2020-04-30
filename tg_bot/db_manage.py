@@ -190,7 +190,7 @@ def connect():
         except:
             print("Connection error")
             if maxTries > 0:
-                time.sleep(2)
+                time.sleep(10)
                 maxTries = maxTries - 1
             else:
                 exit(2)
