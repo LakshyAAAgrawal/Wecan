@@ -20,7 +20,7 @@ dbConfig_docker = {
     #'port': '32000',
     'database': 'wecan'
 }
-dbConfig = dbConfig_local
+dbConfig = dbConfig_docker
 connection = None
 cursor = None
 
