@@ -20,7 +20,7 @@ dbConfig_docker = {
     #'port': '32000',
     'database': 'wecan'
 }
-dbConfig = dbConfig_local
+dbConfig = dbConfig_docker
 connection = None
 cursor = None
 
@@ -42,8 +42,32 @@ queries = {
     "check_card_with_username": 'SELECT 1 FROM CARD WHERE card_id="%s" AND card_name="%s" AND list_id="%s" AND ("%s", "%s") IN (SELECT user_id, board_id FROM BOARD_USER) AND ("%s", "%s") IN (SELECT list_id, board_id FROM LIST)',
     'get_card_name_and_text_by_id': 'SELECT card_name, text FROM CARD where card_id="%s"',
     'get_card_comment_by_card_id': 'SELECT B.full_name, A.text FROM CARD_COMMENT AS A INNER JOIN USER AS B ON A.user_id=B.user_id WHERE A.card_id="%s"',
-    'fetch_pending_deadlines': 'SELECT CARD.card_id, CARD.card_name, DEADLINE.due_date FROM DEADLINE, CARD, LIST, BOARD, BOARD_USER WHERE DEADLINE.due_date > CURTIME() AND DEADLINE.if_completed = FALSE AND DEADLINE.card_id = CARD.card_id AND CARD.list_id = LIST.list_id AND LIST.board_id = BOARD.board_id AND BOARD.board_id = BOARD_USER.board_id AND BOARD_USER.user_id="%s"'
+    'fetch_pending_deadlines': 'SELECT CARD.card_id, CARD.card_name, DEADLINE.due_date FROM DEADLINE, CARD, LIST, BOARD, BOARD_USER WHERE DEADLINE.due_date > CURTIME() AND DEADLINE.if_completed = FALSE AND DEADLINE.card_id = CARD.card_id AND CARD.list_id = LIST.list_id AND LIST.board_id = BOARD.board_id AND BOARD.board_id = BOARD_USER.board_id AND BOARD_USER.user_id="%s"',
+    "add_comment": 'INSERT INTO CARD_COMMENT(card_id, user_id, text) VALUES ("%s", "%s", "%s")'
 }
+
+def add_comment_db(comment_text, card_id, username):
+    try:
+        conn = mysql.connector.connect(**dbConfig)
+        conn.autocommit = False
+        cur = conn.cursor()
+        print(queries['add_comment'] % (card_id, username, comment_text))
+        cur.execute(queries['add_comment'] % (card_id, username, comment_text))
+        conn.commit()
+        return True
+    except mysql.connector.Error as error :
+        print("Failed to update record to database rollback: {}".format(error))
+        conn.rollback()
+        return False
+    except Exception as error2:
+        print("Some other error: {}".format(error2))
+        return False
+    finally:
+        if(conn.is_connected()):
+            if cur is not None:
+                cur.close()
+            conn.close()
+    return False
 
 def fetch_pending_deadlines(username):
     connect()

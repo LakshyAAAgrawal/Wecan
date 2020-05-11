@@ -9,7 +9,7 @@ from telegram import ReplyKeyboardMarkup, ReplyKeyboardRemove, InlineKeyboardBut
 from telegram import ParseMode
 
 from db_manage import check_username_exists, check_login, fetch_boards_of, create_board_in_db, check_board_exists, check_card_exists
-from db_manage import get_board_name_by_id, create_list_in_db, fetch_lists_of, check_list_exists, get_list_name_by_id, fetch_cards_of, fetch_card, fetch_pending_deadlines
+from db_manage import get_board_name_by_id, create_list_in_db, fetch_lists_of, check_list_exists, get_list_name_by_id, fetch_cards_of, fetch_card, fetch_pending_deadlines, add_comment_db
 
 dbConfig = {
     'user': 'root',
@@ -27,7 +27,7 @@ cursor = None
 BEGINMSG = "Hi. Welcome to Wecan. Send \
 /login to begin login process."
 
-USERNAME, PASSWORD, LOGGED_IN, CHOOSING_BOARDS, CREATE_BOARD_ID, CHOOSING_BOARD_ACTION, CREATE_LIST_GET_LABEL, CREATE_LIST_ID, CHOOSING_LISTS, CHOOSING_LIST_ACTION, CHOOSING_CARDS, CHOOSING_CARD_ACTION = range(12)
+USERNAME, PASSWORD, LOGGED_IN, CHOOSING_BOARDS, CREATE_BOARD_ID, CHOOSING_BOARD_ACTION, CREATE_LIST_GET_LABEL, CREATE_LIST_ID, CHOOSING_LISTS, CHOOSING_LIST_ACTION, CHOOSING_CARDS, CHOOSING_CARD_ACTION, CREATE_COMMENT_ID = range(13)
 
 logging.basicConfig(format = '%(asctime)s - %(name)s - %(levelname)s - %(message)s',
                     level = logging.INFO)
@@ -136,7 +136,7 @@ def choose_card_action(update, context):
             update.message.reply_text(
                 response_text,
                 reply_markup = ReplyKeyboardMarkup(
-                    [["Go Back to List"]],
+                    [["Add Comment"], ["Go Back to List"]],
                     resize_keyboard = True
                 ),
                 parse_mode = ParseMode.MARKDOWN
@@ -151,7 +151,44 @@ def choose_card_action(update, context):
         logout(update, context)
         return ConversationHandler.END
 
+def add_comment(update, context):
+    if ('state' in context.user_data and
+        context.user_data['state'] == 'logged_in' and
+        'username' in context.user_data and
+        'board_id' in context.user_data and
+        'list_id' in context.user_data and
+        'card_id' in context.user_data):
+        update.message.reply_text(
+            "Type comment",
+            reply_markup=ReplyKeyboardRemove()
+        )
+        return CREATE_COMMENT_ID
+    else:
+        update.message.reply_text("Inappropriate action")
+        logout(update, context)
+        return ConversationHandler.END
 
+def create_comment_text(update, context):
+    if ('state' in context.user_data and
+        context.user_data['state'] == 'logged_in' and
+        'username' in context.user_data and
+        'board_id' in context.user_data and
+        'list_id' in context.user_data and
+        'card_id' in context.user_data):
+            try:
+                print(update.message.text)
+                if add_comment_db(update.message.text, context.user_data['card_id'], context.user_data['username']):
+                    update.message.reply_text("Comment created succefully")
+                else:
+                    update.message.reply_text("Comment could not be created")
+            except:
+                update.message.reply_text("There was an error in creating the comment")
+            choose_card_action(update, context)
+            return CHOOSING_CARD_ACTION
+    else:
+        logout(update, context)
+        return ConversationHandler.END
+    
 def logged_in_state(update, context):
     update.message.reply_text(
         "Choose action",
@@ -515,6 +552,7 @@ def logout(update, context):
     
 def error(update, context):
     """Log Errors caused by Updates."""
+    print(context.error)
     logger.warning('Update "%s" caused error "%s"', update, context.error)
 
 def main():
@@ -553,6 +591,7 @@ def main():
             ],
             CREATE_LIST_GET_LABEL: [MessageHandler(Filters.text, create_list_label)],
             CREATE_LIST_ID: [MessageHandler(Filters.text, create_list_id)],
+            CREATE_COMMENT_ID: [MessageHandler(Filters.text, create_comment_text)],
             CHOOSING_LISTS: [
                 MessageHandler(Filters.regex('^[^\:]*\:[0-9]*$'), select_list),
                 MessageHandler(Filters.regex('^(Go Back)$'), choose_board_action)
@@ -563,6 +602,7 @@ def main():
             ],
             CHOOSING_CARD_ACTION: [
                 MessageHandler(Filters.regex('^(Go Back to List)$'), exit_card),
+                MessageHandler(Filters.regex('^(Add Comment)$'), add_comment)
             ],
         },
         fallbacks=[CommandHandler('cancel', logout)]
