@@ -84,6 +84,13 @@ def fetch_card(card_id):
     comments = cursor.fetchall()
     return card_name, card_text, comments
 
+def fetch_card_name(card_id):
+    connect()
+    cursor = connection.cursor()
+    cursor.execute(queries['get_card_name_and_text_by_id'] % (card_id))
+    card_name, card_text = cursor.fetchone()
+    return card_name
+
 def get_board_name_by_id(board_id):
     connect()
     cursor = connection.cursor()

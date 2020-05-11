@@ -1,5 +1,6 @@
 import mysql.connector
 import logging
+import requests
 import re
 
 from telegram.ext import Updater, CommandHandler, MessageHandler, Filters
@@ -9,7 +10,9 @@ from telegram import ReplyKeyboardMarkup, ReplyKeyboardRemove, InlineKeyboardBut
 from telegram import ParseMode
 
 from db_manage import check_username_exists, check_login, fetch_boards_of, create_board_in_db, check_board_exists, check_card_exists
-from db_manage import get_board_name_by_id, create_list_in_db, fetch_lists_of, check_list_exists, get_list_name_by_id, fetch_cards_of, fetch_card, fetch_pending_deadlines, add_comment_db
+from db_manage import get_board_name_by_id, create_list_in_db, fetch_lists_of, check_list_exists, get_list_name_by_id, fetch_cards_of, fetch_card, fetch_pending_deadlines, add_comment_db, fetch_card_name
+
+from slack_manage import send_slack_message
 
 dbConfig = {
     'user': 'root',
@@ -179,6 +182,9 @@ def create_comment_text(update, context):
                 print(update.message.text)
                 if add_comment_db(update.message.text, context.user_data['card_id'], context.user_data['username']):
                     update.message.reply_text("Comment created succefully")
+                    username = context.user_data['username']
+                    card_name = fetch_card_name(context.user_data['card_id'])
+                    send_slack_message(f"user {username} commented \"{update.message.text}\" on card {card_name}")
                 else:
                     update.message.reply_text("Comment could not be created")
             except:
@@ -288,6 +294,8 @@ def create_board_id(update, context):
             try:
                 if create_board_in_db(context.user_data['username'], match.group(0)):
                     update.message.reply_text("Board created succefully")
+                    username = context.user_data['username']
+                    send_slack_message(f"user {username} created board {match.group(0)}")
                 else:
                     update.message.reply_text("The board could not be created")
             except:
@@ -312,6 +320,8 @@ def create_list_id(update, context):
             try:
                 if create_list_in_db(context.user_data['username'], context.user_data['board_id'], context.user_data['list_name'], match.group(0)):
                     update.message.reply_text("List created succefully")
+                    username = context.user_data['username']
+                    send_slack_message(f"user {username} created list {context.user_data['list_name']} with label {match.group(0)}")
                 else:
                     update.message.reply_text("The list could not be created")
             except:
