@@ -10,7 +10,7 @@ from telegram import ReplyKeyboardMarkup, ReplyKeyboardRemove, InlineKeyboardBut
 from telegram import ParseMode
 
 from db_manage import check_username_exists, check_login, fetch_boards_of, create_board_in_db, check_board_exists, check_card_exists
-from db_manage import get_board_name_by_id, create_list_in_db, fetch_lists_of, check_list_exists, get_list_name_by_id, fetch_cards_of, fetch_card, fetch_pending_deadlines, add_comment_db, fetch_card_name
+from db_manage import get_board_name_by_id, create_list_in_db, fetch_lists_of, check_list_exists, get_list_name_by_id, fetch_cards_of, fetch_card, fetch_pending_deadlines, add_comment_db, fetch_card_name, create_card_in_db
 
 from slack_manage import send_slack_message
 
@@ -30,7 +30,7 @@ cursor = None
 BEGINMSG = "Hi. Welcome to Wecan. Send \
 /login to begin login process."
 
-USERNAME, PASSWORD, LOGGED_IN, CHOOSING_BOARDS, CREATE_BOARD_ID, CHOOSING_BOARD_ACTION, CREATE_LIST_GET_LABEL, CREATE_LIST_ID, CHOOSING_LISTS, CHOOSING_LIST_ACTION, CHOOSING_CARDS, CHOOSING_CARD_ACTION, CREATE_COMMENT_ID = range(13)
+USERNAME, PASSWORD, LOGGED_IN, CHOOSING_BOARDS, CREATE_BOARD_ID, CHOOSING_BOARD_ACTION, CREATE_LIST_GET_LABEL, CREATE_LIST_ID, CHOOSING_LISTS, CHOOSING_LIST_ACTION, CHOOSING_CARDS, CHOOSING_CARD_ACTION, CREATE_COMMENT_ID, CREATE_CARD_CONTENT = range(14)
 
 logging.basicConfig(format = '%(asctime)s - %(name)s - %(levelname)s - %(message)s',
                     level = logging.INFO)
@@ -108,7 +108,7 @@ def choose_list_action(update, context):
             update.message.reply_text(
                 f"Choose action for list: {get_list_name_by_id(context.user_data['list_id'])}",
                 reply_markup = ReplyKeyboardMarkup(
-                    [["Show Cards"], ["Go Back to Board"]],
+                    [["Show Cards"], ["Create Card"], ["Go Back to Board"]],
                     resize_keyboard = True
                 )
             )
@@ -259,8 +259,46 @@ def create_list(update, context):
         logout(update, context)
         return ConversationHandler.END
 
+def create_card_content(update, context):
+    if ('state' in context.user_data and
+        context.user_data['state'] == 'logged_in' and
+        'username' in context.user_data and
+        'board_id' in context.user_data and
+        'list_id' in context.user_data):
+        pattern = re.compile("([0-9A-Za-z]*) (.*)")
+        if match := pattern.fullmatch(update.message.text):
+            try:
+                if create_card_in_db(context.user_data['list_id'], context.user_data['username'], match.group(1), match.group(2), 1):
+                    update.message.reply_text("Card created succefully")
+                    username = context.user_data['username']
+                    send_slack_message(f"user {username} created card {match.group(1)} with content - {match.group(2)}")
+                else:
+                    update.message.reply_text("The card could not be created")
+            except:
+                update.message.reply_text("There was an error in creating the card")
+            choose_list_action(update, context)
+            return CHOOSING_LIST_ACTION
+        else:
+            update.message.reply_text("Please enter appropriate text")
+            return CREATE_CARD_CONTENT
+    else:
+        logout(update, context)
+        return ConversationHandler.END
+    
 def create_card(update, context):
-    pass
+    if ('state' in context.user_data and
+        context.user_data['state'] == 'logged_in' and
+        'username' in context.user_data and
+        'board_id' in context.user_data and
+        'list_id' in context.user_data):
+        update.message.reply_text(
+            "Type <Card name(without space)><space><Card content>",
+            reply_markup=ReplyKeyboardRemove()
+        )
+        return CREATE_CARD_CONTENT
+    else:
+        logout(update, context)
+        return ConversationHandler.END
 
 def create_list_label(update, context):
     if ('state' in context.user_data and
@@ -614,6 +652,7 @@ def main():
                 MessageHandler(Filters.regex('^(Go Back to List)$'), exit_card),
                 MessageHandler(Filters.regex('^(Add Comment)$'), add_comment)
             ],
+            CREATE_CARD_CONTENT: [MessageHandler(Filters.text, create_card_content)]
         },
         fallbacks=[CommandHandler('cancel', logout)]
     )

@@ -43,7 +43,8 @@ queries = {
     'get_card_name_and_text_by_id': 'SELECT card_name, text FROM CARD where card_id="%s"',
     'get_card_comment_by_card_id': 'SELECT B.full_name, A.text FROM CARD_COMMENT AS A INNER JOIN USER AS B ON A.user_id=B.user_id WHERE A.card_id="%s"',
     'fetch_pending_deadlines': 'SELECT CARD.card_id, CARD.card_name, DEADLINE.due_date FROM DEADLINE, CARD, LIST, BOARD, BOARD_USER WHERE DEADLINE.due_date > CURTIME() AND DEADLINE.if_completed = FALSE AND DEADLINE.card_id = CARD.card_id AND CARD.list_id = LIST.list_id AND LIST.board_id = BOARD.board_id AND BOARD.board_id = BOARD_USER.board_id AND BOARD_USER.user_id="%s"',
-    "add_comment": 'INSERT INTO CARD_COMMENT(card_id, user_id, text) VALUES ("%s", "%s", "%s")'
+    "add_comment": 'INSERT INTO CARD_COMMENT(card_id, user_id, text) VALUES ("%s", "%s", "%s")',
+    "create_card": 'INSERT INTO CARD(list_id, card_admin, card_name, text, multimedia_id) VALUES ("%s", "%s", "%s", "%s", "%s")'
 }
 
 def add_comment_db(comment_text, card_id, username):
@@ -173,6 +174,29 @@ def create_list_in_db(username, board_id, list_name, label):
         cur = conn.cursor()
         print(queries["create_list"] % (board_id, list_name, username, label))
         cur.execute(queries["create_list"] % (board_id, list_name, username, label))
+        conn.commit()
+        return True
+    except mysql.connector.Error as error :
+        print("Failed to update record to database rollback: {}".format(error))
+        conn.rollback()
+        return False
+    except Exception as error2:
+        print("Some other error: {}".format(error2))
+        return False
+    finally:
+        if(conn.is_connected()):
+            if cur is not None:
+                cur.close()
+            conn.close()
+    return False
+
+def create_card_in_db(list_id, username, card_name, card_content, multimedia_id):
+    try:
+        conn = mysql.connector.connect(**dbConfig)
+        conn.autocommit = False
+        cur = conn.cursor()
+        print(queries["create_card"] % (list_id, username, card_name, card_content, multimedia_id))
+        cur.execute(queries["create_card"] % (list_id, username, card_name, card_content, multimedia_id))
         conn.commit()
         return True
     except mysql.connector.Error as error :
