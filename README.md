@@ -1,4 +1,5 @@
 <img src="logo.jpeg" alt="Wecan Logo" width="300"/>
+
 # Project Wecan
 ## Team
 * Lakshya A Agarwal
@@ -49,58 +50,6 @@ present.
 ![UML Diagram](UML.png)
 
 We used python-pandas to automate data simulation for the tables in our database
-
-Indexing has been achieved in our database in the following manner, based on these attributes
-for each table :
-1) TABLE ORGANISATION
-a) Primary
-i) organisation_name
-2) TABLE USER
-a) Primary
-i) user_name
-ii) organisation_id
-3) TABLE BOARD
-a) Primary
-i) board_name
-ii) board_admin
-4) TABLE BOARD_USER
-i) board_id
-
-
-ii) user_id
-5) TABLE TELEGRAM
-a) Primary
-i) user_id
-ii) telegram_handle
-6) TABLE MULTIMEDIA
-a) Primary
-7) TABLE ANNOUNCEMENT
-a) Primary
-i) multimedia_id
-ii) board_id
-iii) user_id
-8) TABLE LIST
-a) Primary
-i) list_name
-ii) board_id
-iii) list_admin
-9) TABLE CARD
-a) Primary
-i) card_name
-ii) multimedia_id
-iii) list_id
-iv) card_admin
-10)TABLE CARD_COMMENT
-a) Primary
-i) card_id
-ii) user_id
-11)TABLE DEADLINE
-i) card_id
-12)TABLE CARD_MOVE
-i) card_id
-ii) user_id
-iii) moved_from_list_id
-iv) moved_to_list_id
 
 ## NORMALIZATION
 The tables have been normalized upto BCNF.
